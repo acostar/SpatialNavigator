@@ -29,9 +29,9 @@ public struct Octant
 public class SpatialNavigationMesh : MonoBehaviour
 {
     [Header("Configuration")]
-    [SerializeField][Min(0.1f)] private float rootSize = 20f;
-    [SerializeField][Range(0, 6)] private int maxLayer = 4;
-    [SerializeField] private LayerMask obstacleLayerMask = Physics.DefaultRaycastLayers;
+    [SerializeField] private float rootSize;
+    [SerializeField] private int maxLayer;
+    [SerializeField] private LayerMask obstacleLayerMask;
 
     private float epsilon = 0.01f;
 
@@ -61,27 +61,8 @@ public class SpatialNavigationMesh : MonoBehaviour
     [Header("To Delete")]
     private int emergencyExit = 10000;
 
-    public bool IsBuilt { get { return octree != null && octree.Count > 0; } }
-
-    private void Start() { if (!IsBuilt) { Build(); } }
-
-    public void Configure(float size, int depth, LayerMask obstacles)
+    private void Start()
     {
-        rootSize = Mathf.Max(0.1f, size);
-        maxLayer = Mathf.Clamp(depth, 0, 6);
-        obstacleLayerMask = obstacles;
-        octree = null;
-    }
-
-    /// <summary>Rebuild after changing static obstacles or the volume position.</summary>
-    [ContextMenu("Build Navigation Volume")]
-    public void Build()
-    {
-        rootSize = Mathf.Max(0.1f, rootSize);
-        maxLayer = Mathf.Clamp(maxLayer, 0, 6);
-        layerCount = 0;
-        visitedOctants = new HashSet<int>();
-        Physics.SyncTransforms();
         var startTime = System.DateTime.UtcNow;
         CreateOctree();
         MarkTransitableOctants();
@@ -128,7 +109,7 @@ public class SpatialNavigationMesh : MonoBehaviour
             int currentOctantIdx = queue.Dequeue();
             Octant currentOctant = octree[currentOctantIdx];
 
-            bool collides = Physics.CheckBox(currentOctant.position, Vector3.one * currentOctant.size * 0.5f, Quaternion.identity, obstacleLayerMask, QueryTriggerInteraction.Ignore);
+            bool collides = Physics.CheckBox(currentOctant.position, Vector3.one * currentOctant.size * 0.5f, Quaternion.identity, obstacleLayerMask);
             if (collides)
             {
                 if (currentOctant.layer >= maxLayer) // Check if continue
@@ -231,7 +212,7 @@ public class SpatialNavigationMesh : MonoBehaviour
 
                     neighOtherParentIdx = higherParent.firstChildIdx + parentNeighPos;
                     Octant possibleNeighbourOtherParent = octree[neighOtherParentIdx];
-                    neighOtherParentIdx = possibleNeighbourOtherParent.isLeaf && !possibleNeighbourOtherParent.isClear ? -1 : higherParent.firstChildIdx + parentNeighPos;
+                    neighOtherParentIdx = possibleNeighbourOtherParent.isLeaf && !possibleNeighbourOtherParent.isClear ? 0 : higherParent.firstChildIdx + parentNeighPos;
                 }
 
                 switch (axis)
@@ -267,50 +248,146 @@ public class SpatialNavigationMesh : MonoBehaviour
         else { return currentIdx; }
     }
 
-    /// <summary>Returns leaf centers; empty means no route. Endpoints are projected to clear cells.</summary>
     public List<Octant> CreatePath(Vector3 a, Vector3 b)
     {
-        if (!IsBuilt) { Build(); }
-        visitedOctants = new HashSet<int>();
-        var path = new List<Octant>();
-        if (!octree[0].isTransitable) { return path; }
-        int start = GetIdxFromOctant(GetClosestOctant(a));
-        int goal = GetIdxFromOctant(GetClosestOctant(b));
-        if (start < 0 || goal < 0) { return path; }
-        var open = new List<int> { start };
-        var costs = new Dictionary<int, float> { { start, 0f } };
-        var parents = new Dictionary<int, int>();
-        int iterations = 0;
-        while (open.Count > 0 && iterations++ < emergencyExit)
+        List<Octant> path = new List<Octant>();
+        HashSet<int> visited = new HashSet<int>();
+
+        Dictionary<int, int> cameFrom = new Dictionary<int, int>();
+
+        Octant startOctant = GetClosestOctant(a);
+        int startOctantIdx = GetIdxFromOctant(startOctant);
+
+        Octant endOctant = GetClosestOctant(b);
+        int endOctantIdx = GetIdxFromOctant(endOctant);
+
+        if (startOctantIdx < 0 || endOctantIdx < 0) { Debug.LogError("CreatePath.cs: Error with closest octant"); }
+
+        if (verboseMode)
         {
-            int best = 0;
-            for (int i = 1; i < open.Count; i++)
-            {
-                float candidate = costs[open[i]] + Vector3.Distance(octree[open[i]].position, octree[goal].position);
-                float current = costs[open[best]] + Vector3.Distance(octree[open[best]].position, octree[goal].position);
-                if (candidate < current) { best = i; }
-            }
-            int node = open[best];
-            open.RemoveAt(best);
-            visitedOctants.Add(node);
-            if (node == goal)
-            {
-                while (node != start) { path.Add(octree[node]); node = parents[node]; }
-                path.Add(octree[start]);
-                path.Reverse();
-                return path;
-            }
-            foreach (int neighbour in GetAllNeighbours(octree[node]))
-            {
-                if (visitedOctants.Contains(neighbour)) { continue; }
-                float score = costs[node] + Vector3.Distance(octree[node].position, octree[neighbour].position);
-                if (costs.TryGetValue(neighbour, out float oldScore) && score >= oldScore) { continue; }
-                costs[neighbour] = score;
-                parents[neighbour] = node;
-                if (!open.Contains(neighbour)) { open.Add(neighbour); }
-            }
+            Debug.Log("Position A: " + a);
+            Debug.Log("StartOctant: " + startOctant.position);
+            Debug.Log("StartOctantIdx: " + startOctantIdx);
+
+            Debug.Log("Position B: " + b);
+            Debug.Log("EndOctant: " + endOctant.position);
+            Debug.Log("EndOctantIdx: " + endOctantIdx);
+            Debug.Log("EndOctantParentIdx: " + endOctant.parentIdx);
         }
-        if (verboseMode) { Debug.LogWarning("Spatial Navigator: no route found or search budget exhausted.", this); }
+
+        PriorityQueue<int> queue = new PriorityQueue<int>();
+        queue.Enqueue(startOctantIdx, 0);
+
+        int iterations = 0;
+        while (queue.Count > 0 && iterations < emergencyExit)
+        {
+            iterations++;
+            (int currentOctantIdx, float cost) = queue.Dequeue();
+
+            if (currentOctantIdx == endOctantIdx)
+            {
+                if (verboseMode) { Debug.Log("SpatialAgent - Iterations: " + iterations); }
+                break;
+            }
+
+            Octant currentOctant = octree[currentOctantIdx];
+            List<int> neighbours = GetAllNeighbours(currentOctant);
+
+            foreach (int neighIdx in neighbours)
+            {
+                if (visited.Contains(neighIdx)) { continue; }
+
+                Octant neighbour = octree[neighIdx];
+                float neighCost = ManhattanDistance(currentOctant.position, neighbour.position) + ManhattanDistance(neighbour.position, endOctant.position);
+
+                if (queue.Contains(neighIdx))
+                {
+                    if (queue.PeekPriority(neighIdx) > neighCost)
+                    {
+                        cameFrom[neighIdx] = currentOctantIdx;
+                        queue.UpdatePriority(neighIdx, neighCost);
+                    }
+                }
+                else
+                {
+                    cameFrom.Add(neighIdx, currentOctantIdx);
+                    queue.Enqueue(neighIdx, neighCost);
+                }
+
+                //if (cameFrom.ContainsKey(neighIdx)) { cameFrom[neighIdx] = currentOctantIdx; }
+                //else { cameFrom.Add(neighIdx, currentOctantIdx); }
+            }
+
+            // Explore other neighbours
+            /*
+                int neighIdx = -1;
+                foreach (int i in GetNeighboursIdx(currentOctant))
+                {
+                    neighIdx++;
+                    if (i < 0) { continue; }
+
+                    Octant neighbour = octree[i];
+                    if (visited.Contains(i)) { continue; }
+
+                    if (neighbour.isClear) // It is a leaf
+                    {
+                        queue.Enqueue(i, ManhattanDistance(currentOctant.position, neighbour.position) + ManhattanDistance(neighbour.position, endOctant.position));
+
+                        if (cameFrom.ContainsKey(i)) { cameFrom[i] = currentOctantIdx; }
+                        else { cameFrom.Add(i, currentOctantIdx); }
+                    }
+
+                    else if (neighbour.isTransitable) // Search all closest leaf octant
+                    {
+                        foreach (int j in GetAllNeighbours(currentOctant, neighbour, neighIdx))
+                        {
+                            if (visited.Contains(j)) { continue; }
+                            queue.Enqueue(j, ManhattanDistance(currentOctant.position, octree[j].position) + ManhattanDistance(octree[j].position, endOctant.position));
+
+                            if (cameFrom.ContainsKey(j)) { cameFrom[j] = currentOctantIdx; }
+                            else { cameFrom.Add(j, currentOctantIdx); }
+                        }
+                    }
+                }
+            */
+
+            visited.Add(currentOctantIdx);
+        }
+
+        visitedOctants = visited;
+        //Debug.Log("Visited: " + visitedOctants.Count);
+        //Debug.Log("Iterations: " + iterations);
+
+        if (iterations >= emergencyExit)
+        {
+            Debug.Log(">>>>>>>>>>>>>>>> EmergencyExit! <<<<<<<<<<<<<<<<");
+            Debug.Log(">> Start Position: " + a);
+            Debug.Log(">> Start Octant: " + startOctantIdx);
+            Debug.Log(">> ---------------------");
+            Debug.Log(">> End Position: " + b);
+            Debug.Log(">> End Octant: " + endOctantIdx);
+
+            Time.timeScale = 0;
+
+            return new List<Octant>();
+        }
+
+        path.Add(endOctant);
+        if (cameFrom.Count <= 0) { return path; }
+
+        Octant actualOctant = new Octant();
+        try { actualOctant = octree[cameFrom[endOctantIdx]]; }
+        catch (System.Exception exception) { Debug.LogException(exception); return new List<Octant>(); }
+
+        while (actualOctant.position != startOctant.position)
+        {
+            path.Add(actualOctant);
+            actualOctant = octree[cameFrom[GetIdxFromOctant(actualOctant)]];
+        }
+
+        path.Add(startOctant);
+        path.Reverse();
+
         return path;
     }
 
@@ -332,7 +409,6 @@ public class SpatialNavigationMesh : MonoBehaviour
     private List<int> GetAllNeighbours(Octant octant, Octant neighOctant, int axis)
     {
         if (neighOctant.isClear) { return new List<int> { GetIdxFromOctant(neighOctant) }; }
-        if (neighOctant.isLeaf || !neighOctant.isTransitable) { return new List<int>(); }
 
         List<int> neighbours = new List<int>();
         for (int i = neighOctant.firstChildIdx; i < neighOctant.firstChildIdx + 8; i++)
@@ -464,7 +540,7 @@ public class SpatialNavigationMesh : MonoBehaviour
     public List<int> GetVisitedOctants()
     {
         List<int> list = new List<int>();
-        if (visitedOctants != null) { foreach (int i in visitedOctants) { list.Add(i); } }
+        foreach (int i in visitedOctants) { list.Add(i); }
 
         return list;
     }
@@ -481,7 +557,7 @@ public class SpatialNavigationMesh : MonoBehaviour
         {
             if (!debugMode) { return; }
 
-            if (focusedOctant > 0 && focusedOctant < octree.Count)
+            if (focusedOctant > 0)
             {
                 DrawOctant(octree[focusedOctant], showNeighbours);
                 focusedOctantParent = octree[focusedOctant].parentIdx;

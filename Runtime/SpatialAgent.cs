@@ -18,14 +18,14 @@ public class SpatialAgent : MonoBehaviour
     [SerializeField] private bool moveDirectly;
     [SerializeField] private Vector3 center;
     [SerializeField, Min(0.001f)] private float navigationRadius = 1.0f;
-    [SerializeField, Min(0.001f)] private float approachHeight = 0f;
-    [SerializeField] private LayerMask collisionLayers = Physics.DefaultRaycastLayers;
+    [SerializeField, Min(0.001f)] private float approachHeight = 0.5f;
+    [SerializeField] private LayerMask collisionLayers;
 
     [Header("Target")]
     [SerializeField] private Transform target;
-    [SerializeField] private float minValidDistance = 0.2f;
-    [SerializeField] private float recalculatePathTime = 0.5f;
-    [SerializeField] private float recalculatePathDistance = 1f;
+    [SerializeField] private float minValidDistance;
+    [SerializeField] private float recalculatePathTime;
+    [SerializeField] private float recalculatePathDistance;
     private float lastPathTime;
     private Vector3 lastTargetPosition;
 
@@ -68,25 +68,11 @@ public class SpatialAgent : MonoBehaviour
         sphereChecks = new List<SphereCheck>();
     }
 
-    private void OnEnable()
-    {
-        if (navigationMesh == null) { navigationMesh = FindObjectOfType<SpatialNavigationMesh>(); }
-        sphereChecks = new List<SphereCheck>();
-    }
-
-    /// <summary>Assign a volume explicitly when the scene contains multiple volumes.</summary>
-    public void Configure(SpatialNavigationMesh volume, LayerMask obstacles, float radius = 0.25f)
-    {
-        navigationMesh = volume;
-        collisionLayers = obstacles;
-        navigationRadius = Mathf.Max(0.001f, radius);
-        currentPath = null;
-        lastPathTime = 0f;
-    }
+    private void OnEnable() { navigationMesh = GameObject.FindWithTag("NavigationMesh").GetComponent<SpatialNavigationMesh>(); }
 
     private void Update()
     {
-        if (calculatePath) { currentPath = null; if (target != null) { Move(target.position, 0.0f); } calculatePath = false; }
+        if (calculatePath) { currentPath = null; Move(target.position, 0.0f); calculatePath = false; }
 
         lastPathTime -= Time.deltaTime;
 
@@ -106,42 +92,28 @@ public class SpatialAgent : MonoBehaviour
 
     public void Move(Vector3 position, float speed)
     {
-        if (navigationMesh == null) { return; }
-        speed = Mathf.Max(0f, speed);
+        if (lastTargetPosition == null) { lastTargetPosition = position; }
         targetPosition = position;
 
         if (moveDirectly && CanMoveDirectly(transform.position, position, false)) { transform.position = Vector3.MoveTowards(transform.position, position, speed * Time.deltaTime); return; }
 
-        if (currentPath != null && currentPath.Count > 0)
+        if (currentPath != null)
         {
-            if (currentOctantIdx == currentPath.Count - 1 && CanMoveDirectly(transform.position, position, false))
-            {
-                transform.position = Vector3.MoveTowards(transform.position, position, speed * Time.deltaTime);
-            }
-            else if (Vector3.Distance(transform.position, currentPath[currentOctantIdx].position) < minValidDistance) // Reached the current destination
+            if (Vector3.Distance(transform.position, currentPath[currentOctantIdx].position) < minValidDistance) // Reached the current destination
             {
                 if (currentOctantIdx + 1 < currentPath.Count) { currentOctantIdx++; }
-                else if (CanMoveDirectly(transform.position, position, false))
-                {
-                    transform.position = Vector3.MoveTowards(transform.position, position, speed * Time.deltaTime);
-                }
             }
-            else if (CanMoveDirectly(transform.position, currentPath[currentOctantIdx].position, false))
-            { transform.position = Vector3.MoveTowards(transform.position, currentPath[currentOctantIdx].position, speed * Time.deltaTime); }
-            else { currentPath = null; }
+            else { transform.position = Vector3.MoveTowards(transform.position, currentPath[currentOctantIdx].position, speed * Time.deltaTime); }
         }
 
         // Check if it has to recalculate
-        if (lastPathTime <= 0 || Vector3.Distance(position, lastTargetPosition) >= recalculatePathDistance || (currentPath == null && lastPathTime <= 0))
+        if (lastPathTime <= 0 || Vector3.Distance(position, lastTargetPosition) >= recalculatePathDistance || currentPath == null)
         {
             var startTime = System.DateTime.UtcNow;
 
             List<Octant> newPath = navigationMesh.CreatePath(transform.position, position);
             if (newPath.Count <= 0)
             {
-                currentPath = null;
-                lastTargetPosition = position;
-                lastPathTime = recalculatePathTime;
                 if (showVisitedOctants)
                 {
                     visitedOctants = navigationMesh.GetVisitedOctants();
@@ -244,11 +216,9 @@ public class SpatialAgent : MonoBehaviour
         }
 
         // Check the displacement
-        // Cast along the exact segment used by movement.
-        Vector3 destination = nextPosition;
+        Vector3 destination = nextPosition + (Vector3.up * approachHeight);
         Vector3 displacement = destination - originalPosition;
         float distance = displacement.magnitude;
-        if (distance <= 0.00001f) { return true; }
         Vector3 direction = displacement / distance;
 
         bool collides = Physics.SphereCast(originalPosition, navigationRadius, direction, out RaycastHit hit, distance, collisionLayers, QueryTriggerInteraction.Ignore);
@@ -274,13 +244,13 @@ public class SpatialAgent : MonoBehaviour
     */
 
     public void RecordSphereChecks() { sphereChecks = new List<SphereCheck>(); recordSphereChecks = true; }
-    public void StopSphereChecks() { recordSphereChecks = false; }
+    public void StopSphereChecks() { recordSphereChecks = true; }
 
     private void OnDrawGizmosSelected()
     {
         // Draw Sphere Collider
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(transform.position, navigationRadius);
+        Gizmos.DrawWireSphere(center, navigationRadius);
 
         if (lastSphereCheck.blocked) { Gizmos.color = Color.red; }
         else { Gizmos.color = Color.green; }
@@ -293,7 +263,7 @@ public class SpatialAgent : MonoBehaviour
     {
         if (debugMode && navigationMesh != null)
         {
-            if (currentPath != null && currentPath.Count > 0)
+            if (currentPath != null)
             {
                 if (showOriginOctant) { navigationMesh.DrawOctant(currentPath[0], false); }
                 if (showTargetOctant && currentPath.Count > 1) { navigationMesh.DrawOctant(currentPath[currentPath.Count - 1], false); }

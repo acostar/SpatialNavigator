@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "displayName": "Spatial Navigator",
   "description": "Octree-based 3D navigation for flying agents in Unity. Includes a flying-agent sample.",
-  "unity": "2021.3",
+  "unity": "2022.3",
   "author": {
     "name": "acostar",
     "url": "https://github.com/acostar"
@@ -17,9 +17,6 @@
     "flying",
     "octree"
   ],
-  "dependencies": {
-    "com.unity.modules.physics": "1.0.0"
-  },
   "samples": [
     {
       "displayName": "Flying Agent Demo",
