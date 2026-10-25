@@ -1,0 +1,32 @@
+{
+  "name": "com.acostar.spatialNavigator",
+  "version": "0.1.0",
+  "displayName": "Spatial Navigator",
+  "description": "Octree-based 3D navigation for flying agents in Unity. Includes a flying-agent sample.",
+  "unity": "2021.3",
+  "author": {
+    "name": "acostar",
+    "url": "https://github.com/acostar"
+  },
+  "license": "MIT",
+  "documentationUrl": "https://github.com/acostar/SpatialNavigator#readme",
+  "changelogUrl": "https://github.com/acostar/SpatialNavigator/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/acostar/SpatialNavigator/blob/main/LICENSE.md",
+  "keywords": [
+    "navigation",
+    "pathfinding",
+    "3d",
+    "flying",
+    "octree"
+  ],
+  "dependencies": {
+    "com.unity.modules.physics": "1.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Flying Agent Demo",
+      "description": "Generated obstacle course with an agent flying between two targets.",
+      "path": "Samples~/FlyingAgentDemo"
+    }
+  ]
+}

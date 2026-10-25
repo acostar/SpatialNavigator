@@ -1,0 +1,15 @@
+# Unity project output (if used while developing this package)
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Bb]uilds/
+.vs/
+.idea/
+*.csproj
+*.sln
+*.user
+.DS_Store
+Thumbs.db
+__pycache__/

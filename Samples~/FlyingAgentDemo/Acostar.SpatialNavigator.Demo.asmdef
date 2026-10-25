@@ -1,0 +1,6 @@
+{
+  "name": "Acostar.SpatialNavigator.Demo",
+  "references": [
+    "Acostar.SpatialNavigator"
+  ]
+}

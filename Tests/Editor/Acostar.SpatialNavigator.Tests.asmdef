@@ -1,0 +1,13 @@
+{
+  "name": "Acostar.SpatialNavigator.Tests",
+  "references": [
+    "Acostar.SpatialNavigator"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}
