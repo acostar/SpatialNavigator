@@ -9,9 +9,7 @@
     "url": "https://github.com/acostar"
   },
   "license": "MIT",
-  "documentationUrl": "https://github.com/acostar/SpatialNavigator#readme",
-  "changelogUrl": "https://github.com/acostar/SpatialNavigator/blob/main/CHANGELOG.md",
-  "licensesUrl": "https://github.com/acostar/SpatialNavigator/blob/main/LICENSE.md",
+  "licensesUrl": "https://github.com/acostar/SpatialNavigator/blob/main/LICENSE",
   "keywords": [
     "navigation",
     "pathfinding",
