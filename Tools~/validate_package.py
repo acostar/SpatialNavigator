@@ -3,7 +3,7 @@ from pathlib import Path
 import json, re
 root = Path(__file__).resolve().parents[1]
 manifest = json.loads((root / 'package.json').read_text())
-assert manifest['name'] == 'com.acostar.spatial-navigator'
+assert manifest['name'] == 'com.acostar.spatialNavigator'
 assert re.fullmatch(r'\d+\.\d+\.\d+', manifest['version'])
 for sample in manifest['samples']:
     assert (root / sample['path']).is_dir()
