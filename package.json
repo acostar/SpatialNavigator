@@ -1,5 +1,5 @@
 {
-  "name": "com.acostar.spatialNavigator",
+  "name": "com.acostar.spatialnavigator",
   "version": "0.1.0",
   "displayName": "Spatial Navigator",
   "description": "Octree-based 3D navigation for flying agents in Unity. Includes a flying-agent sample.",
